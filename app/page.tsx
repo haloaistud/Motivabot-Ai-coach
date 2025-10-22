@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import PersonalityTest, { type PersonalityData } from "@/components/personality-test"
+import AffirmationsModule from "@/components/affirmations-module"
 import { elevenLabsService } from "@/lib/elevenlabs"
 import {
   Brain,
@@ -18,6 +19,7 @@ import {
   FlameIcon as Fire,
   Trophy,
   Smile,
+  Sparkles,
 } from "lucide-react"
 
 const motivationalQuotes = [
@@ -140,43 +142,52 @@ export default function MotivaBOT() {
       id: "dashboard",
       label: "Dashboard",
       icon: Gauge,
-      description: "Your motivation hub with daily insights, progress tracking, and quick actions",
+      description:
+        "Your motivation hub with daily insights, progress tracking, and quick actions to boost your productivity",
     },
     {
       id: "personality",
       label: "Personality",
       icon: Brain,
-      description: "Complete your personality assessment for personalized motivation",
+      description:
+        "Discover your unique personality traits and get personalized motivation strategies tailored just for you",
+    },
+    {
+      id: "affirmations",
+      label: "Daily Affirmations",
+      icon: Sparkles,
+      description: "Discover powerful positive affirmations, build daily habits, and track your motivation streak",
     },
     {
       id: "chat",
-      label: "AI Chat",
+      label: "AI Coach Chat",
       icon: MessageCircle,
-      description: "Chat with your personal AI motivation coach for guidance and support",
+      description:
+        "Have meaningful conversations with your AI motivation coach for guidance, support, and encouragement",
     },
     {
       id: "goals",
-      label: "Goals",
+      label: "Goal Tracker",
       icon: Target,
-      description: "Set, track, and achieve your personal and professional goals",
+      description: "Set SMART goals, break them into actionable steps, and track your progress with visual analytics",
     },
     {
       id: "mood",
-      label: "Mood Tracker",
+      label: "Mood & Wellness",
       icon: Heart,
-      description: "Log your daily mood and emotions to track your mental wellness journey",
+      description: "Monitor your emotional well-being, track mood patterns, and build healthy mental habits",
     },
     {
       id: "horoscope",
-      label: "Horoscope",
+      label: "Daily Horoscope",
       icon: Star,
-      description: "Get daily horoscope insights and cosmic motivation for your zodiac sign",
+      description: "Get personalized cosmic insights and astrological motivation based on your zodiac sign",
     },
     {
       id: "friends",
-      label: "Friend Wall",
+      label: "Community",
       icon: Users,
-      description: "Connect with fellow motivators and share your journey with others",
+      description: "Connect with like-minded individuals, share achievements, and find accountability partners",
     },
   ]
 
@@ -241,8 +252,19 @@ export default function MotivaBOT() {
                 onClick={() => setActiveTab(tab.id)}
                 title={tab.description}
               >
-                <Icon size={24} />
-                {tab.label}
+                <Icon size={28} />
+                <span style={{ fontWeight: "600", fontSize: "0.95rem" }}>{tab.label}</span>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    opacity: 0.8,
+                    textAlign: "center",
+                    lineHeight: "1.2",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  {tab.description.split(",")[0]}
+                </span>
               </button>
             )
           })}
@@ -340,6 +362,17 @@ export default function MotivaBOT() {
                     Chat with MotivaBOT
                   </Button>
                   <Button
+                    onClick={() => setActiveTab("affirmations")}
+                    style={{
+                      background: "linear-gradient(135deg, var(--primary), var(--primary-dark))",
+                      color: "black",
+                      justifyContent: "flex-start",
+                    }}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Daily Affirmations
+                  </Button>
+                  <Button
                     onClick={() => setActiveTab("goals")}
                     style={{
                       background: "var(--glass-bg)",
@@ -366,7 +399,9 @@ export default function MotivaBOT() {
             </div>
           )}
 
-          {activeTab !== "dashboard" && (
+          {activeTab === "affirmations" && <AffirmationsModule />}
+
+          {activeTab !== "dashboard" && activeTab !== "affirmations" && (
             <div className="card">
               <h2 className="card-title">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
               <p>This section is under development. Advanced features coming soon!</p>

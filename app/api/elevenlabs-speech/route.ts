@@ -8,6 +8,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 })
     }
 
+    const apiKey = process.env.ELEVENLABS_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json({ error: "ElevenLabs API key not configured", fallback: true }, { status: 503 })
+    }
+
     const voiceId = getVoiceIdByEmotion(emotion)
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -15,7 +21,7 @@ export async function POST(request: NextRequest) {
       headers: {
         Accept: "audio/mpeg",
         "Content-Type": "application/json",
-        "xi-api-key": process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || "",
+        "xi-api-key": apiKey,
       },
       body: JSON.stringify({
         text: text,
@@ -30,7 +36,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      throw new Error(`ElevenLabs API error: ${response.status}`)
+      const errorBody = await response.text()
+      console.error(`ElevenLabs API error: ${response.status}`, errorBody)
+
+      return NextResponse.json(
+        {
+          error: "ElevenLabs API unavailable",
+          fallback: true,
+          details: response.status === 401 ? "API quota exceeded or authentication failed" : "Service unavailable",
+        },
+        { status: 503 },
+      )
     }
 
     const audioBuffer = await response.arrayBuffer()
@@ -43,7 +59,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("ElevenLabs speech error:", error)
-    return NextResponse.json({ error: "Speech synthesis failed" }, { status: 500 })
+    return NextResponse.json({ error: "Speech synthesis failed", fallback: true }, { status: 503 })
   }
 }
 

@@ -1,41 +1,22 @@
 // ElevenLabs API integration for high-quality speech synthesis
 export class ElevenLabsService {
-  private apiKey: string
-  private baseUrl = "https://api.elevenlabs.io/v1"
-  private defaultVoiceId = "pNInz6obpgDQGcFmaJgB" // Adam voice - warm, friendly male voice
+  private baseUrl = "/api/elevenlabs-speech"
 
-  constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || ""
-  }
-
-  async synthesizeSpeech(text: string, voiceId?: string): Promise<ArrayBuffer | null> {
-    if (!this.apiKey) {
-      console.warn("ElevenLabs API key not found, falling back to browser speech synthesis")
-      return null
-    }
-
+  async synthesizeSpeech(text: string, emotion = "neutral"): Promise<ArrayBuffer | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId || this.defaultVoiceId}`, {
+      const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          Accept: "audio/mpeg",
           "Content-Type": "application/json",
-          "xi-api-key": this.apiKey,
         },
         body: JSON.stringify({
           text,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.8,
-            style: 0.2,
-            use_speaker_boost: true,
-          },
+          emotion,
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`)
+        throw new Error(`Speech API error: ${response.status}`)
       }
 
       return await response.arrayBuffer()
@@ -63,8 +44,8 @@ export class ElevenLabsService {
     })
   }
 
-  async speak(text: string, voiceId?: string): Promise<void> {
-    const audioBuffer = await this.synthesizeSpeech(text, voiceId)
+  async speak(text: string, emotion = "neutral"): Promise<void> {
+    const audioBuffer = await this.synthesizeSpeech(text, emotion)
 
     if (audioBuffer) {
       await this.playAudio(audioBuffer)
@@ -83,29 +64,6 @@ export class ElevenLabsService {
       utterance.volume = 0.8
       utterance.lang = "en-US"
       speechSynthesis.speak(utterance)
-    }
-  }
-
-  // Get available voices from ElevenLabs
-  async getVoices(): Promise<any[]> {
-    if (!this.apiKey) return []
-
-    try {
-      const response = await fetch(`${this.baseUrl}/voices`, {
-        headers: {
-          "xi-api-key": this.apiKey,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      return data.voices || []
-    } catch (error) {
-      console.error("Error fetching ElevenLabs voices:", error)
-      return []
     }
   }
 }

@@ -19,7 +19,13 @@ interface ChatModuleProps {
 
 const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { type: "bot", message: "Welcome! How can I help motivate you today?", timestamp: new Date(), emotion: "friendly" },
+    {
+      type: "bot",
+      message:
+        "Welcome! I'm MotivaBOT, your personal AI motivation coach. I'm here to help you achieve your dreams and stay motivated on your journey to success!",
+      timestamp: new Date(),
+      emotion: "enthusiastic",
+    },
   ])
   const [input, setInput] = useState("")
   const [isListening, setIsListening] = useState(false)
@@ -27,6 +33,8 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
   const [userId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+  const [conversationContext, setConversationContext] = useState<string[]>([]) // Added conversation context tracking
+  const [userProfile, setUserProfile] = useState({ name: "", goals: [], preferences: [] }) // Added user profile tracking
   const chatLogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -78,10 +86,10 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    setConversationContext((prev) => [...prev.slice(-5), input.trim()]) // Update conversation context
     setIsProcessing(true)
 
     try {
-      // Call our speech schema API
       const response = await fetch("/api/speech-response", {
         method: "POST",
         headers: {
@@ -90,6 +98,9 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
         body: JSON.stringify({
           message: input.trim(),
           userId: userId,
+          context: conversationContext,
+          userProfile: userProfile,
+          timestamp: new Date().toISOString(),
         }),
       })
 
@@ -108,19 +119,23 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
 
       setMessages((prev) => [...prev, botMessage])
 
-      // Use ElevenLabs for speech synthesis with emotion
       if (onMessageSpeak) {
         setIsSpeaking(true)
         try {
           await onMessageSpeak(data.text, data.emotion)
         } catch (error) {
           console.error("Speech synthesis error:", error)
+          if ("speechSynthesis" in window) {
+            const utterance = new SpeechSynthesisUtterance(data.text)
+            utterance.rate = 0.9
+            utterance.pitch = 1.1
+            speechSynthesis.speak(utterance)
+          }
         } finally {
           setIsSpeaking(false)
         }
       }
 
-      // Add follow-up message if provided
       if (data.followUp) {
         setTimeout(() => {
           const followUpMessage: ChatMessage = {
@@ -132,14 +147,25 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
           setMessages((prev) => [...prev, followUpMessage])
         }, 2000)
       }
+
+      if (data.userInsights) {
+        setUserProfile((prev) => ({
+          ...prev,
+          ...data.userInsights,
+        }))
+      }
     } catch (error) {
       console.error("Error getting bot response:", error)
 
-      // Fallback response
+      const fallbackResponses = [
+        "I'm having trouble processing that right now, but I believe in your ability to overcome any challenge! Could you try rephrasing your message?",
+        "My circuits are a bit tangled at the moment, but my enthusiasm for helping you succeed is unwavering! Let's try that again.",
+        "Technical hiccup on my end, but that won't stop us from achieving greatness together! Please rephrase your question.",
+      ]
+
       const fallbackMessage: ChatMessage = {
         type: "bot",
-        message:
-          "I'm having trouble processing that right now, but I'm here to help! Could you try rephrasing your message?",
+        message: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
         timestamp: new Date(),
         emotion: "apologetic",
       }
@@ -189,27 +215,43 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   }
 
   const quickActions = [
-    { text: "I need motivation for work", label: "💼 Work motivation" },
-    { text: "Help me set a meaningful goal", label: "🎯 Set a goal" },
-    { text: "I'm feeling down and need support", label: "😔 Need support" },
-    { text: "Give me an inspiring pep talk", label: "🔥 Pep talk" },
-    { text: "I'm struggling with staying motivated", label: "💪 Stay motivated" },
-    { text: "What's my purpose in life?", label: "🌟 Find purpose" },
+    { text: "I need motivation for work", label: "💼 Work Motivation", category: "work" },
+    { text: "Help me set a meaningful goal", label: "🎯 Goal Setting", category: "goals" },
+    { text: "I'm feeling down and need support", label: "💙 Emotional Support", category: "support" },
+    { text: "Give me an inspiring pep talk", label: "🔥 Pep Talk", category: "motivation" },
+    { text: "I'm struggling with staying motivated", label: "💪 Stay Motivated", category: "persistence" },
+    { text: "What's my purpose in life?", label: "🌟 Find Purpose", category: "purpose" },
+    { text: "How can I build better habits?", label: "🔄 Build Habits", category: "habits" },
+    { text: "I need help with time management", label: "⏰ Time Management", category: "productivity" },
+    { text: "How do I overcome fear and anxiety?", label: "🦋 Overcome Fear", category: "courage" },
+    { text: "I want to improve my self-confidence", label: "✨ Build Confidence", category: "confidence" },
   ]
 
   return (
-    <Card className="chat-box">
-      <CardHeader>
+    <Card className="chat-box border-2 border-golden-primary/20 bg-gradient-to-br from-golden-light/5 to-golden-primary/5">
+      <CardHeader className="bg-gradient-to-r from-golden-primary/10 to-golden-accent/10">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
-                <Robot className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 bg-gradient-to-r from-golden-primary to-golden-accent rounded-full flex items-center justify-center shadow-lg">
+                <Robot className="w-7 h-7 text-black" />
               </div>
               <div>
-                <div className="font-semibold">MotivaBOT</div>
-                <div className="text-sm text-muted-foreground">
-                  {isProcessing ? "Thinking..." : "Online & Ready to Help"}
+                <div className="font-bold text-golden-primary text-lg">MotivaBOT</div>
+                <div className="text-sm text-golden-dark">
+                  {isProcessing ? (
+                    <span className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-golden-primary rounded-full animate-pulse"></div>
+                      Crafting your motivation...
+                    </span>
+                  ) : isSpeaking ? (
+                    <span className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      Speaking with inspiration...
+                    </span>
+                  ) : (
+                    "Your Personal Success Coach • Online 24/7"
+                  )}
                 </div>
               </div>
             </div>
@@ -219,86 +261,113 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
               variant="outline"
               size="sm"
               onClick={toggleVoiceRecognition}
-              className={isListening ? "bg-red-100 border-red-300" : ""}
+              className={`border-golden-primary ${isListening ? "bg-red-100 border-red-300 text-red-600" : "text-golden-primary hover:bg-golden-primary hover:text-black"}`}
               title={isListening ? "Stop listening" : "Start voice input"}
             >
-              {isListening ? <MicOff className="w-4 h-4 text-red-600" /> : <Mic className="w-4 h-4" />}
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </Button>
-            <Button variant="outline" size="sm" onClick={clearChat} title="Clear chat history">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearChat}
+              title="Clear chat history"
+              className="border-golden-primary text-golden-primary hover:bg-golden-primary hover:text-black bg-transparent"
+            >
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div id="chat-log" ref={chatLogRef} className="h-64 overflow-y-auto mb-4 p-3 bg-muted/20 rounded-lg border">
+      <CardContent className="p-6">
+        <div
+          id="chat-log"
+          ref={chatLogRef}
+          className="h-80 overflow-y-auto mb-6 p-4 bg-gradient-to-b from-golden-light/5 to-transparent rounded-lg border border-golden-primary/20"
+        >
           {messages.map((msg, index) => (
-            <div key={index} className={`mb-3 ${msg.type === "user" ? "text-right" : "text-left"}`}>
+            <div key={index} className={`mb-4 ${msg.type === "user" ? "text-right" : "text-left"}`}>
               <div
-                className={`inline-block max-w-[80%] ${
+                className={`inline-block max-w-[85%] ${
                   msg.type === "user"
-                    ? "bg-primary text-primary-foreground ml-auto"
-                    : "bg-secondary text-secondary-foreground mr-auto"
-                } p-3 rounded-lg`}
+                    ? "bg-gradient-to-r from-golden-primary to-golden-accent text-black ml-auto shadow-lg"
+                    : "bg-gradient-to-r from-white to-golden-light/20 text-golden-primary mr-auto border border-golden-primary/20 shadow-md"
+                } p-4 rounded-2xl`}
               >
                 {msg.type === "bot" && (
-                  <div className="flex items-center gap-2 mb-1">
-                    <Robot className="w-4 h-4" />
-                    <span className="font-medium text-sm">MotivaBOT</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Robot className="w-4 h-4 text-golden-primary" />
+                    <span className="font-semibold text-sm text-golden-primary">MotivaBOT</span>
                     {msg.emotion && (
-                      <span className="text-xs opacity-70 bg-primary/10 px-2 py-1 rounded">{msg.emotion}</span>
+                      <span className="text-xs bg-golden-primary/20 text-golden-dark px-2 py-1 rounded-full">
+                        {msg.emotion}
+                      </span>
                     )}
                   </div>
                 )}
-                <div className="break-words">{msg.message}</div>
-                <div className={`text-xs mt-1 opacity-70`}>{formatTime(msg.timestamp)}</div>
+                <div className="break-words leading-relaxed">{msg.message}</div>
+                <div
+                  className={`text-xs mt-2 opacity-70 ${msg.type === "user" ? "text-black/70" : "text-golden-dark"}`}
+                >
+                  {formatTime(msg.timestamp)}
+                </div>
               </div>
             </div>
           ))}
           {(isSpeaking || isProcessing) && (
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="speaking-animation">{isProcessing ? "🤔" : "🔊"}</div>
-                {isProcessing ? "MotivaBOT is thinking..." : "MotivaBOT is speaking..."}
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-3 text-golden-primary bg-golden-light/20 px-4 py-2 rounded-full border border-golden-primary/20">
+                <div className="speaking-animation text-xl">{isProcessing ? "🤔" : "🔊"}</div>
+                <span className="font-medium">
+                  {isProcessing ? "MotivaBOT is thinking deeply..." : "MotivaBOT is speaking with passion..."}
+                </span>
               </div>
             </div>
           )}
         </div>
 
-        <div className="chat-input-container">
+        <div className="chat-input-container flex gap-3 mb-4">
           <input
             id="chat-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isListening ? "Listening..." : isProcessing ? "Processing..." : "Type your message..."}
+            placeholder={
+              isListening
+                ? "🎤 Listening to your voice..."
+                : isProcessing
+                  ? "⏳ Processing your message..."
+                  : "Share what's on your mind..."
+            }
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             disabled={isListening || isProcessing}
-            className="flex-1"
+            className="flex-1 px-4 py-3 border-2 border-golden-primary/30 rounded-xl bg-white/90 text-golden-primary placeholder-golden-dark/60 focus:border-golden-primary focus:ring-2 focus:ring-golden-primary/20"
           />
           <button
             id="send-button"
             onClick={sendMessage}
             disabled={!input.trim() || isListening || isProcessing}
-            className="flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-golden-primary to-golden-accent text-black font-semibold rounded-xl hover:from-golden-accent hover:to-golden-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg transition-all duration-200"
           >
             <Send className="w-4 h-4" />
             Send
           </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {quickActions.map((action, index) => (
-            <Button
-              key={index}
-              variant="outline"
-              size="sm"
-              onClick={() => setInput(action.text)}
-              className="text-xs"
-              disabled={isProcessing}
-            >
-              {action.label}
-            </Button>
-          ))}
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-golden-primary">Quick Actions - Get Instant Motivation:</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {quickActions.map((action, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                size="sm"
+                onClick={() => setInput(action.text)}
+                className="text-xs justify-start border-golden-primary/30 text-golden-primary hover:bg-golden-primary hover:text-black transition-all duration-200"
+                disabled={isProcessing}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>
