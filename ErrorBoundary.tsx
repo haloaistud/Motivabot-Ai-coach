@@ -1,0 +1,1 @@
+// ErrorBoundary.tsx content here

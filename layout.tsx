@@ -1,0 +1,1 @@
+// RootLayout with ErrorBoundary wrapper
