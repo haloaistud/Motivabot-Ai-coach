@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Send, Mic, BotIcon as Robot, Trash2, MicOff } from "lucide-react"
-import type { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent } from "web-speech-api"
+import { Send, Mic, Bot as Robot, Trash2, MicOff } from "lucide-react"
 
 interface ChatMessage {
   type: "user" | "bot"
@@ -31,10 +30,10 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
+  const [recognition, setRecognition] = useState<any | null>(null)
   const [userId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
-  const [conversationContext, setConversationContext] = useState<string[]>([]) // Added conversation context tracking
-  const [userProfile, setUserProfile] = useState({ name: "", goals: [], preferences: [] }) // Added user profile tracking
+  const [conversationContext, setConversationContext] = useState<string[]>([])
+  const [userProfile, setUserProfile] = useState({ name: "", goals: [], preferences: [] })
   const chatLogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,13 +50,13 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
         setIsListening(true)
       }
 
-      recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+      recognitionInstance.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript
         setInput(transcript)
         setIsListening(false)
       }
 
-      recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+      recognitionInstance.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error)
         setIsListening(false)
       }
