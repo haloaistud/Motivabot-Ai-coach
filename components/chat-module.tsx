@@ -3,37 +3,25 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Send, Mic, Bot as Robot, Trash2, MicOff } from "lucide-react"
-
-interface ChatMessage {
-  type: "user" | "bot"
-  message: string
-  timestamp: Date
-  emotion?: string
-}
+import { Send, Mic, Bot as Robot, Trash2, MicOff, AlertCircle } from 'lucide-react'
+import { aiAgent } from "@/lib/ai-agent"
+import { elevenLabsAgent } from "@/lib/elevenlabs-agent"
+import type { AIMessage } from "@/lib/ai-agent"
 
 interface ChatModuleProps {
   onMessageSpeak?: (text: string, emotion?: string) => void
 }
 
 const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      type: "bot",
-      message:
-        "Welcome! I'm MotivaBOT, your personal AI motivation coach. I'm here to help you achieve your dreams and stay motivated on your journey to success!",
-      timestamp: new Date(),
-      emotion: "enthusiastic",
-    },
-  ])
+  const [messages, setMessages] = useState<AIMessage[]>([])
   const [input, setInput] = useState("")
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [recognition, setRecognition] = useState<any | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [recognition, setRecognition] = useState<any>(null)
+  const [conversationId] = useState(() => `conv_${Date.now()}`)
   const [userId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
-  const [conversationContext, setConversationContext] = useState<string[]>([])
-  const [userProfile, setUserProfile] = useState({ name: "", goals: [], preferences: [] })
   const chatLogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -78,131 +66,71 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   const sendMessage = async () => {
     if (!input.trim() || isProcessing) return
 
-    const userMessage: ChatMessage = {
-      type: "user",
-      message: input.trim(),
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setConversationContext((prev) => [...prev.slice(-5), input.trim()]) // Update conversation context
+    setError(null)
     setIsProcessing(true)
 
     try {
-      const response = await fetch("/api/speech-response", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: input.trim(),
-          userId: userId,
-          context: conversationContext,
-          userProfile: userProfile,
-          timestamp: new Date().toISOString(),
-        }),
-      })
+      const response = await aiAgent.sendMessage(conversationId, input.trim(), userId)
 
-      if (!response.ok) {
-        throw new Error("Failed to get response from speech API")
+      if (!response) {
+        throw new Error("Failed to get response from AI agent")
       }
 
-      const data = await response.json()
-
-      const botMessage: ChatMessage = {
-        type: "bot",
-        message: data.text,
-        timestamp: new Date(),
-        emotion: data.emotion,
+      const conversation = aiAgent.getConversation(conversationId)
+      if (conversation) {
+        setMessages(conversation.messages)
       }
 
-      setMessages((prev) => [...prev, botMessage])
-
-      if (onMessageSpeak) {
+      if (response.emotion) {
         setIsSpeaking(true)
-        try {
-          await onMessageSpeak(data.text, data.emotion)
-        } catch (error) {
-          console.error("Speech synthesis error:", error)
-          if ("speechSynthesis" in window) {
-            const utterance = new SpeechSynthesisUtterance(data.text)
-            utterance.rate = 0.9
-            utterance.pitch = 1.1
-            speechSynthesis.speak(utterance)
-          }
-        } finally {
-          setIsSpeaking(false)
-        }
+        await elevenLabsAgent.speak({
+          text: response.content,
+          emotion: response.emotion,
+          onEnd: () => setIsSpeaking(false),
+          onError: (err) => {
+            console.error("Speech error:", err)
+            setIsSpeaking(false)
+          },
+        })
       }
-
-      if (data.followUp) {
-        setTimeout(() => {
-          const followUpMessage: ChatMessage = {
-            type: "bot",
-            message: data.followUp,
-            timestamp: new Date(),
-            emotion: "curious",
-          }
-          setMessages((prev) => [...prev, followUpMessage])
-        }, 2000)
-      }
-
-      if (data.userInsights) {
-        setUserProfile((prev) => ({
-          ...prev,
-          ...data.userInsights,
-        }))
-      }
-    } catch (error) {
-      console.error("Error getting bot response:", error)
-
-      const fallbackResponses = [
-        "I'm having trouble processing that right now, but I believe in your ability to overcome any challenge! Could you try rephrasing your message?",
-        "My circuits are a bit tangled at the moment, but my enthusiasm for helping you succeed is unwavering! Let's try that again.",
-        "Technical hiccup on my end, but that won't stop us from achieving greatness together! Please rephrase your question.",
-      ]
-
-      const fallbackMessage: ChatMessage = {
-        type: "bot",
-        message: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
-        timestamp: new Date(),
-        emotion: "apologetic",
-      }
-      setMessages((prev) => [...prev, fallbackMessage])
+    } catch (err) {
+      console.error("[ChatModule] Error sending message:", err)
+      setError("I'm having trouble processing that right now. Please try again.")
     } finally {
       setIsProcessing(false)
+      setInput("")
     }
-
-    setInput("")
   }
 
   const toggleVoiceRecognition = () => {
     if (!recognition) {
-      alert("Speech recognition is not supported in your browser.")
+      setError("Speech recognition is not supported in your browser.")
       return
     }
 
-    if (isListening) {
-      recognition.stop()
-    } else {
-      try {
+    try {
+      if (isListening) {
+        recognition.stop()
+      } else {
         recognition.start()
-      } catch (error) {
-        console.error("Error starting speech recognition:", error)
-        setIsListening(false)
+        setError(null)
       }
+    } catch (err) {
+      console.error("[ChatModule] Voice recognition error:", err)
+      setError("Failed to start voice recognition. Please try again.")
+      setIsListening(false)
     }
   }
 
   const clearChat = () => {
-    setMessages([
-      {
-        type: "bot",
-        message: "Chat cleared! How can I help motivate you today?",
-        timestamp: new Date(),
-        emotion: "friendly",
-      },
-    ])
+    try {
+      aiAgent.clearConversation(conversationId)
+      setMessages([])
+      setError(null)
+    } catch (err) {
+      console.error("[ChatModule] Error clearing chat:", err)
+      setError("Failed to clear chat. Please refresh the page.")
+    }
   }
 
   const formatTime = (date: Date) => {
@@ -278,21 +206,21 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        <div
-          id="chat-log"
-          ref={chatLogRef}
-          className="h-80 overflow-y-auto mb-6 p-4 bg-gradient-to-b from-golden-light/5 to-transparent rounded-lg border border-golden-primary/20"
-        >
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <p className="text-sm">{error}</p>
+            <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
+              ×
+            </Button>
+          </div>
+        )}
+
+        <div id="chat-log" ref={chatLogRef} className="h-80 overflow-y-auto mb-6 p-4 bg-gradient-to-b from-golden-light/5 to-transparent rounded-lg border border-golden-primary/20">
           {messages.map((msg, index) => (
-            <div key={index} className={`mb-4 ${msg.type === "user" ? "text-right" : "text-left"}`}>
-              <div
-                className={`inline-block max-w-[85%] ${
-                  msg.type === "user"
-                    ? "bg-gradient-to-r from-golden-primary to-golden-accent text-black ml-auto shadow-lg"
-                    : "bg-gradient-to-r from-white to-golden-light/20 text-golden-primary mr-auto border border-golden-primary/20 shadow-md"
-                } p-4 rounded-2xl`}
-              >
-                {msg.type === "bot" && (
+            <div key={msg.id || index} className={`mb-4 ${msg.role === "user" ? "text-right" : "text-left"}`}>
+              <div className={`inline-block max-w-[85%] ${msg.role === "user" ? "bg-gradient-to-r from-golden-primary to-golden-accent text-black ml-auto shadow-lg" : "bg-gradient-to-r from-white to-golden-light/20 text-golden-primary mr-auto border border-golden-primary/20 shadow-md"} p-4 rounded-2xl`}>
+                {msg.role === "assistant" && (
                   <div className="flex items-center gap-2 mb-2">
                     <Robot className="w-4 h-4 text-golden-primary" />
                     <span className="font-semibold text-sm text-golden-primary">MotivaBOT</span>
@@ -303,11 +231,13 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
                     )}
                   </div>
                 )}
-                <div className="break-words leading-relaxed">{msg.message}</div>
-                <div
-                  className={`text-xs mt-2 opacity-70 ${msg.type === "user" ? "text-black/70" : "text-golden-dark"}`}
-                >
-                  {formatTime(msg.timestamp)}
+                <div className="break-words leading-relaxed">{msg.content}</div>
+                <div className={`text-xs mt-2 opacity-70 ${msg.role === "user" ? "text-black/70" : "text-golden-dark"}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
                 </div>
               </div>
             </div>

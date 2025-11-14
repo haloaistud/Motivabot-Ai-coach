@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Target, Plus, Trash2, CheckCircle, Circle, TrendingUp } from "lucide-react"
+import { Target, Plus, Trash2, CheckCircle, Circle, TrendingUp, AlertCircle } from 'lucide-react'
+import { dataStore } from "@/lib/data-store"
+import type { Goal } from "@/lib/data-store"
 
 interface Goal {
   id: string
@@ -41,64 +43,107 @@ export default function GoalsModule() {
   const [selectedCategory, setSelectedCategory] = useState("")
   const [selectedPriority, setSelectedPriority] = useState<"low" | "medium" | "high">("medium")
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all")
-  const [targetDate, setTargetDate] = useState("") // Added target date functionality
-  const [showAnalytics, setShowAnalytics] = useState(false) // Added analytics toggle
+  const [targetDate, setTargetDate] = useState("")
+  const [showAnalytics, setShowAnalytics] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
-    const savedGoals = localStorage.getItem("motivabotGoals")
-    if (savedGoals) {
-      try {
-        const parsedGoals = JSON.parse(savedGoals).map((goal: any) => ({
-          ...goal,
-          createdAt: new Date(goal.createdAt),
-          targetDate: goal.targetDate ? new Date(goal.targetDate) : undefined,
-        }))
-        setGoals(parsedGoals)
-      } catch (error) {
-        console.error("Error loading goals:", error)
-      }
+    try {
+      const loadedGoals = dataStore.getGoals()
+      setGoals(loadedGoals)
+    } catch (err) {
+      console.error("[GoalsModule] Error loading goals:", err)
+      setError("Failed to load your goals. Please refresh the page.")
     }
   }, [])
 
-  useEffect(() => {
-    localStorage.setItem("motivabotGoals", JSON.stringify(goals))
-  }, [goals])
-
   const addGoal = () => {
-    if (!newGoal.trim() || !selectedCategory) return
-
-    const goal: Goal = {
-      id: Date.now().toString(),
-      text: newGoal.trim(),
-      completed: false,
-      createdAt: new Date(),
-      progress: 0,
-      category: selectedCategory,
-      priority: selectedPriority,
-      targetDate: targetDate ? new Date(targetDate) : undefined, // Added target date
+    if (!newGoal.trim() || !selectedCategory) {
+      setError("Please fill in all required fields")
+      return
     }
 
-    setGoals([...goals, goal])
-    setNewGoal("")
-    setSelectedCategory("")
-    setSelectedPriority("medium")
-    setTargetDate("") // Reset target date
+    try {
+      setError(null)
+      const goal = dataStore.addGoal({
+        title: newGoal.trim(),
+        category: selectedCategory,
+        description: "",
+        deadline: targetDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        progress: 0,
+        completed: false,
+        priority: selectedPriority,
+      })
+
+      if (goal) {
+        setGoals(dataStore.getGoals())
+        setNewGoal("")
+        setSelectedCategory("")
+        setSelectedPriority("medium")
+        setTargetDate("")
+        setSuccess("Goal added successfully!")
+        setTimeout(() => setSuccess(null), 3000)
+      } else {
+        setError("Failed to add goal. Please try again.")
+      }
+    } catch (err) {
+      console.error("[GoalsModule] Error adding goal:", err)
+      setError("An error occurred while adding your goal.")
+    }
   }
 
   const deleteGoal = (id: string) => {
-    setGoals(goals.filter((goal) => goal.id !== id))
+    try {
+      const success = dataStore.deleteGoal(id)
+      if (success) {
+        setGoals(dataStore.getGoals())
+      } else {
+        setError("Failed to delete goal.")
+      }
+    } catch (err) {
+      console.error("[GoalsModule] Error deleting goal:", err)
+      setError("An error occurred while deleting the goal.")
+    }
   }
 
   const toggleGoalCompletion = (id: string) => {
-    setGoals(
-      goals.map((goal) =>
-        goal.id === id ? { ...goal, completed: !goal.completed, progress: goal.completed ? 0 : 100 } : goal,
-      ),
-    )
+    try {
+      const goal = goals.find((g) => g.id === id)
+      if (!goal) return
+
+      const success = dataStore.updateGoal(id, {
+        completed: !goal.completed,
+        progress: goal.completed ? 0 : 100,
+      })
+
+      if (success) {
+        setGoals(dataStore.getGoals())
+      } else {
+        setError("Failed to update goal.")
+      }
+    } catch (err) {
+      console.error("[GoalsModule] Error toggling goal:", err)
+      setError("An error occurred while updating the goal.")
+    }
   }
 
   const updateProgress = (id: string, progress: number) => {
-    setGoals(goals.map((goal) => (goal.id === id ? { ...goal, progress, completed: progress >= 100 } : goal)))
+    try {
+      const success = dataStore.updateGoal(id, {
+        progress: Math.max(0, Math.min(100, progress)),
+        completed: progress >= 100,
+      })
+
+      if (success) {
+        setGoals(dataStore.getGoals())
+      } else {
+        setError("Failed to update progress.")
+      }
+    } catch (err) {
+      console.error("[GoalsModule] Error updating progress:", err)
+      setError("An error occurred while updating progress.")
+    }
   }
 
   const filteredGoals = goals.filter((goal) => {
@@ -180,6 +225,23 @@ export default function GoalsModule() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p className="text-sm">{error}</p>
+              <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
+                ×
+              </Button>
+            </div>
+          )}
+          
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <p className="text-sm">{success}</p>
+            </div>
+          )}
+
           <form
             id="goal-form"
             onSubmit={(e) => {

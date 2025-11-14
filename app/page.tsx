@@ -4,23 +4,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import PersonalityTest, { type PersonalityData } from "@/components/personality-test"
 import AffirmationsModule from "@/components/affirmations-module"
+import AchievementsModule from "@/components/achievements-module"
+import HabitTracker from "@/components/habit-tracker"
+import DataExport from "@/components/data-export"
 import { elevenLabsService } from "@/lib/elevenlabs"
-import {
-  Brain,
-  MessageCircle,
-  Target,
-  Heart,
-  Star,
-  Users,
-  Gauge,
-  BotIcon as Robot,
-  Plus,
-  Volume2,
-  FlameIcon as Fire,
-  Trophy,
-  Smile,
-  Sparkles,
-} from "lucide-react"
+import { dataStore } from "@/lib/data-store"
+import { Brain, MessageCircle, Target, Heart, Star, Users, Gauge, Bot as Robot, Plus, Volume2, File as Fire, Trophy, Smile, Sparkles, Check, Download } from 'lucide-react'
 
 const motivationalQuotes = [
   "Believe you can and you're halfway there. - Theodore Roosevelt",
@@ -46,6 +35,11 @@ export default function MotivaBOT() {
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [hasAutoSpoken, setHasAutoSpoken] = useState(false)
+  const [habits, setHabits] = useState<string[]>([])
+  const [completedHabits, setCompletedHabits] = useState<Set<string>>(new Set())
+  const [goals, setGoals] = useState<any[]>([])
+  const [moodEntries, setMoodEntries] = useState<any[]>([])
+  const [streak, setStreak] = useState(0)
 
   useEffect(() => {
     setCurrentQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)])
@@ -72,6 +66,18 @@ export default function MotivaBOT() {
       }, 3000)
     }
   }, [activeTab, currentQuote, isPersonalityComplete, hasAutoSpoken])
+
+  useEffect(() => {
+    const loadedHabits = dataStore.get('habits', [])
+    const loadedGoals = dataStore.get('goals', [])
+    const loadedMood = dataStore.get('moodEntries', [])
+    const loadedStreak = dataStore.get('streak', 0)
+    
+    setHabits(loadedHabits)
+    setGoals(loadedGoals)
+    setMoodEntries(loadedMood)
+    setStreak(loadedStreak)
+  }, [])
 
   const createParticles = (count: number) => {
     const particlesContainer = document.getElementById("particles")
@@ -133,6 +139,30 @@ export default function MotivaBOT() {
     await speakText(`Here's a new motivation for you: ${newQuote}`)
   }
 
+  const handleToggleHabit = (habit: string) => {
+    setCompletedHabits((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(habit)) {
+        newSet.delete(habit)
+      } else {
+        newSet.add(habit)
+      }
+      return newSet
+    })
+  }
+
+  const handleAddHabit = (habit: string) => {
+    const newHabits = [...habits, habit]
+    setHabits(newHabits)
+    dataStore.set('habits', newHabits)
+  }
+
+  const handleRemoveHabit = (habit: string) => {
+    const newHabits = habits.filter((h) => h !== habit)
+    setHabits(newHabits)
+    dataStore.set('habits', newHabits)
+  }
+
   if (!isPersonalityComplete) {
     return <PersonalityTest onComplete={handlePersonalityComplete} />
   }
@@ -188,6 +218,24 @@ export default function MotivaBOT() {
       label: "Community",
       icon: Users,
       description: "Connect with like-minded individuals, share achievements, and find accountability partners",
+    },
+    {
+      id: "achievements",
+      label: "Achievements",
+      icon: Trophy,
+      description: "Track your progress milestones and unlock achievement badges",
+    },
+    {
+      id: "habits",
+      label: "Habit Tracker",
+      icon: Check,
+      description: "Build and track your daily habits for consistent growth",
+    },
+    {
+      id: "export",
+      label: "Data Export",
+      icon: Download,
+      description: "Download and backup your motivation journey data",
     },
   ]
 
@@ -316,7 +364,7 @@ export default function MotivaBOT() {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem" }}
                 >
                   <div>
-                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>0</div>
+                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>{streak}</div>
                     <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Day Streak</div>
                   </div>
                   <Fire className="w-8 h-8" style={{ color: "var(--primary)" }} />
@@ -327,7 +375,7 @@ export default function MotivaBOT() {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem" }}
                 >
                   <div>
-                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>0</div>
+                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>{goals.length}</div>
                     <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Goals Achieved</div>
                   </div>
                   <Trophy className="w-8 h-8" style={{ color: "var(--primary)" }} />
@@ -401,7 +449,25 @@ export default function MotivaBOT() {
 
           {activeTab === "affirmations" && <AffirmationsModule />}
 
-          {activeTab !== "dashboard" && activeTab !== "affirmations" && (
+          {activeTab === "achievements" && (
+            <AchievementsModule goals={goals} moodEntries={moodEntries} streak={streak} />
+          )}
+
+          {activeTab === "habits" && (
+            <HabitTracker
+              habits={habits}
+              completedHabits={completedHabits}
+              onToggle={handleToggleHabit}
+              onAdd={handleAddHabit}
+              onRemove={handleRemoveHabit}
+            />
+          )}
+
+          {activeTab === "export" && (
+            <DataExport userData={personalityData} goals={goals} moodEntries={moodEntries} streak={streak} />
+          )}
+
+          {activeTab !== "dashboard" && activeTab !== "affirmations" && activeTab !== "achievements" && activeTab !== "habits" && activeTab !== "export" && (
             <div className="card">
               <h2 className="card-title">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
               <p>This section is under development. Advanced features coming soon!</p>

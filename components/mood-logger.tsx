@@ -5,128 +5,135 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Heart, Calendar, TrendingUp, Plus, Check } from "lucide-react"
+import { Heart, Calendar, TrendingUp, Plus, Check, AlertCircle, CheckCircle } from 'lucide-react'
+import { dataStore } from "@/lib/data-store"
+import type { MoodEntry } from "@/lib/data-store"
 
 interface MoodEntry {
-  date: string
-  mood: number
+  timestamp: string
+  mood: string
+  energy: number
   notes: string
   habits: string[]
 }
 
-interface Habit {
-  id: string
-  name: string
-  completed: boolean
-}
-
 export default function MoodLogger() {
-  const [selectedMood, setSelectedMood] = useState(0)
+  const [selectedMood, setSelectedMood] = useState("")
+  const [energy, setEnergy] = useState(5)
   const [moodNotes, setMoodNotes] = useState("")
   const [entries, setEntries] = useState<MoodEntry[]>([])
-  const [habits, setHabits] = useState<Habit[]>([
-    { id: "1", name: "Drink 8 glasses of water", completed: false },
-    { id: "2", name: "Exercise for 30 minutes", completed: false },
-    { id: "3", name: "Meditate for 10 minutes", completed: false },
-    { id: "4", name: "Read for 20 minutes", completed: false },
-    { id: "5", name: "Practice gratitude", completed: false },
+  const [habits, setHabits] = useState<string[]>([
+    "Drink 8 glasses of water",
+    "Exercise for 30 minutes",
+    "Meditate for 10 minutes",
+    "Read for 20 minutes",
+    "Practice gratitude",
   ])
+  const [completedHabits, setCompletedHabits] = useState<Set<string>>(new Set())
   const [newHabit, setNewHabit] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   const moodOptions = [
-    { value: 5, emoji: "😁", label: "Excellent", color: "text-green-600" },
-    { value: 4, emoji: "😊", label: "Good", color: "text-blue-600" },
-    { value: 3, emoji: "😐", label: "Okay", color: "text-yellow-600" },
-    { value: 2, emoji: "😟", label: "Down", color: "text-orange-600" },
-    { value: 1, emoji: "😢", label: "Sad", color: "text-red-600" },
+    { value: "excellent", emoji: "😁", label: "Excellent", color: "text-green-600" },
+    { value: "good", emoji: "😊", label: "Good", color: "text-blue-600" },
+    { value: "okay", emoji: "😐", label: "Okay", color: "text-yellow-600" },
+    { value: "down", emoji: "😟", label: "Down", color: "text-orange-600" },
+    { value: "sad", emoji: "😢", label: "Sad", color: "text-red-600" },
   ]
 
   useEffect(() => {
-    const savedEntries = localStorage.getItem("motivabotMoodEntries")
-    const savedHabits = localStorage.getItem("motivabotHabits")
-
-    if (savedEntries) {
-      try {
-        setEntries(JSON.parse(savedEntries))
-      } catch (error) {
-        console.error("Error loading mood entries:", error)
-      }
-    }
-
-    if (savedHabits) {
-      try {
-        setHabits(JSON.parse(savedHabits))
-      } catch (error) {
-        console.error("Error loading habits:", error)
-      }
+    try {
+      const moodHistory = dataStore.getMoodHistory()
+      setEntries(moodHistory)
+    } catch (err) {
+      console.error("[MoodLogger] Error loading mood history:", err)
+      setError("Failed to load mood history.")
     }
   }, [])
 
-  useEffect(() => {
-    localStorage.setItem("motivabotMoodEntries", JSON.stringify(entries))
-  }, [entries])
-
-  useEffect(() => {
-    localStorage.setItem("motivabotHabits", JSON.stringify(habits))
-  }, [habits])
-
   const saveMoodEntry = () => {
-    if (selectedMood === 0) return
-
-    const today = new Date().toISOString().split("T")[0]
-    const completedHabits = habits.filter((h) => h.completed).map((h) => h.name)
-
-    const entry: MoodEntry = {
-      date: today,
-      mood: selectedMood,
-      notes: moodNotes,
-      habits: completedHabits,
+    if (!selectedMood) {
+      setError("Please select a mood")
+      return
     }
 
-    // Remove existing entry for today if it exists
-    const filteredEntries = entries.filter((e) => e.date !== today)
-    setEntries([entry, ...filteredEntries])
+    try {
+      setError(null)
+      const entry = dataStore.addMoodEntry({
+        mood: selectedMood,
+        energy: energy,
+        notes: moodNotes,
+        habits: Array.from(completedHabits),
+      })
 
-    setSelectedMood(0)
-    setMoodNotes("")
+      if (entry) {
+        setEntries(dataStore.getMoodHistory())
+        setSelectedMood("")
+        setEnergy(5)
+        setMoodNotes("")
+        setCompletedHabits(new Set())
+        setSuccess("Mood logged successfully!")
+        setTimeout(() => setSuccess(null), 3000)
 
-    // Reset habits for next day
-    setHabits(habits.map((h) => ({ ...h, completed: false })))
+        // Update streak
+        dataStore.updateStreak()
+      } else {
+        setError("Failed to save mood entry.")
+      }
+    } catch (err) {
+      console.error("[MoodLogger] Error saving mood:", err)
+      setError("An error occurred while saving your mood.")
+    }
   }
 
-  const toggleHabit = (id: string) => {
-    setHabits(habits.map((habit) => (habit.id === id ? { ...habit, completed: !habit.completed } : habit)))
+  const toggleHabit = (habit: string) => {
+    const newCompleted = new Set(completedHabits)
+    if (newCompleted.has(habit)) {
+      newCompleted.delete(habit)
+    } else {
+      newCompleted.add(habit)
+    }
+    setCompletedHabits(newCompleted)
   }
 
   const addHabit = () => {
     if (!newHabit.trim()) return
 
-    const habit: Habit = {
-      id: Date.now().toString(),
-      name: newHabit.trim(),
-      completed: false,
+    try {
+      setHabits([...habits, newHabit.trim()])
+      setNewHabit("")
+    } catch (err) {
+      console.error("[MoodLogger] Error adding habit:", err)
+      setError("Failed to add habit.")
     }
-
-    setHabits([...habits, habit])
-    setNewHabit("")
   }
 
-  const removeHabit = (id: string) => {
-    setHabits(habits.filter((h) => h.id !== id))
+  const removeHabit = (habit: string) => {
+    try {
+      setHabits(habits.filter((h) => h !== habit))
+      const newCompleted = new Set(completedHabits)
+      newCompleted.delete(habit)
+      setCompletedHabits(newCompleted)
+    } catch (err) {
+      console.error("[MoodLogger] Error removing habit:", err)
+      setError("Failed to remove habit.")
+    }
   }
 
-  const getAverageMood = () => {
-    if (entries.length === 0) return 0
-    const sum = entries.reduce((acc, entry) => acc + entry.mood, 0)
-    return (sum / entries.length).toFixed(1)
+  const getStats = () => {
+    try {
+      return dataStore.getMoodStats()
+    } catch (err) {
+      console.error("[MoodLogger] Error getting stats:", err)
+      return { avgEnergy: 0, avgMood: "neutral", totalEntries: 0 }
+    }
   }
 
-  const getMoodEmoji = (mood: number) => {
-    const option = moodOptions.find((opt) => opt.value === mood)
-    return option ? option.emoji : "😐"
-  }
-
-  const todaysEntry = entries.find((entry) => entry.date === new Date().toISOString().split("T")[0])
+  const stats = getStats()
+  const todaysEntry = entries.find(
+    (entry) => new Date(entry.timestamp).toDateString() === new Date().toDateString()
+  )
 
   return (
     <div className="space-y-6">
@@ -134,7 +141,7 @@ export default function MoodLogger() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Heart className="w-6 h-6" />
-            Mood & Habit Tracker
+            Mood & Wellness Tracker
           </CardTitle>
           <p className="text-muted-foreground flex items-center gap-2">
             <Calendar className="w-4 h-4" />
@@ -147,6 +154,23 @@ export default function MoodLogger() {
           </p>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <p className="text-sm">{error}</p>
+              <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
+                ×
+              </Button>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <p className="text-sm">{success}</p>
+            </div>
+          )}
+
           {!todaysEntry ? (
             <>
               <div className="mb-6">
@@ -180,23 +204,23 @@ export default function MoodLogger() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Daily Habits</h3>
                   <Badge variant="outline" className="text-xs">
-                    {habits.filter((h) => h.completed).length}/{habits.length} completed
+                    {completedHabits.size}/{habits.length} completed
                   </Badge>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                   {habits.map((habit) => (
                     <div
-                      key={habit.id}
+                      key={habit}
                       className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-                        habit.completed
+                        completedHabits.has(habit)
                           ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
                           : "bg-card hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="sm" onClick={() => toggleHabit(habit.id)} className="p-0 h-auto">
-                          {habit.completed ? (
+                        <Button variant="ghost" size="sm" onClick={() => toggleHabit(habit)} className="p-0 h-auto">
+                          {completedHabits.has(habit) ? (
                             <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
                               <Check className="w-3 h-3 text-white" />
                             </div>
@@ -204,14 +228,14 @@ export default function MoodLogger() {
                             <div className="w-5 h-5 border-2 border-muted-foreground rounded-full" />
                           )}
                         </Button>
-                        <span className={habit.completed ? "line-through text-muted-foreground" : ""}>
-                          {habit.name}
+                        <span className={completedHabits.has(habit) ? "line-through text-muted-foreground" : ""}>
+                          {habit}
                         </span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeHabit(habit.id)}
+                        onClick={() => removeHabit(habit)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         ×
@@ -234,13 +258,13 @@ export default function MoodLogger() {
                 </div>
               </div>
 
-              <Button onClick={saveMoodEntry} disabled={selectedMood === 0} className="w-full">
+              <Button onClick={saveMoodEntry} disabled={selectedMood === ""} className="w-full">
                 Save Today's Entry
               </Button>
             </>
           ) : (
             <div className="text-center py-8">
-              <div className="text-4xl mb-4">{getMoodEmoji(todaysEntry.mood)}</div>
+              <div className="text-4xl mb-4">{moodOptions.find((m) => m.value === todaysEntry.mood)?.emoji || "😐"}</div>
               <h3 className="text-lg font-semibold mb-2">Today's mood logged!</h3>
               <p className="text-muted-foreground mb-4">
                 You felt {moodOptions.find((m) => m.value === todaysEntry.mood)?.label.toLowerCase()} today
@@ -260,7 +284,7 @@ export default function MoodLogger() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const filteredEntries = entries.filter((e) => e.date !== todaysEntry.date)
+                  const filteredEntries = entries.filter((e) => e.timestamp !== todaysEntry.timestamp)
                   setEntries(filteredEntries)
                 }}
               >
@@ -277,22 +301,24 @@ export default function MoodLogger() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-6 h-6" />
-                Mood Analytics
+                Wellness Analytics
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold mb-2">{entries.length}</div>
+                  <div className="text-3xl font-bold mb-2">{stats.totalEntries}</div>
                   <div className="text-sm text-muted-foreground">Days Tracked</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold mb-2">{getMoodEmoji(Math.round(Number(getAverageMood())))}</div>
-                  <div className="text-sm text-muted-foreground">Average Mood</div>
+                  <div className="text-3xl font-bold mb-2">{stats.avgEnergy.toFixed(1)}/10</div>
+                  <div className="text-sm text-muted-foreground">Avg Energy</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold mb-2">{getAverageMood()}/5</div>
-                  <div className="text-sm text-muted-foreground">Mood Score</div>
+                  <div className="text-3xl mb-2">
+                    {moodOptions.find((m) => m.value === stats.avgMood)?.emoji || "😐"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Average Mood</div>
                 </div>
               </div>
             </CardContent>
@@ -307,9 +333,9 @@ export default function MoodLogger() {
                 {entries.slice(0, 10).map((entry, index) => (
                   <div key={index} className="flex items-start gap-4 p-3 bg-muted/20 rounded-lg">
                     <div className="text-center min-w-0">
-                      <div className="text-2xl mb-1">{getMoodEmoji(entry.mood)}</div>
+                      <div className="text-2xl mb-1">{moodOptions.find((m) => m.value === entry.mood)?.emoji}</div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(entry.date).toLocaleDateString("en-US", {
+                        {new Date(entry.timestamp).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                         })}
@@ -319,7 +345,7 @@ export default function MoodLogger() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium">{moodOptions.find((m) => m.value === entry.mood)?.label}</span>
                         <Badge variant="outline" className="text-xs">
-                          {entry.mood}/5
+                          {entry.mood}
                         </Badge>
                       </div>
                       {entry.notes && <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{entry.notes}</p>}
