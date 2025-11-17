@@ -7,9 +7,16 @@ import AffirmationsModule from "@/components/affirmations-module"
 import AchievementsModule from "@/components/achievements-module"
 import HabitTracker from "@/components/habit-tracker"
 import DataExport from "@/components/data-export"
+import PersonaProfile from "@/components/persona-profile"
+import CommunityModule from "@/components/community-module"
+import ChatModule from "@/components/chat-module"
+import GoalsModule from "@/components/goals-module"
+import MoodLogger from "@/components/mood-logger"
+import HoroscopeModule from "@/components/horoscope-module"
+import QuoteModule from "@/components/quote-module"
 import { elevenLabsService } from "@/lib/elevenlabs"
 import { dataStore } from "@/lib/data-store"
-import { Brain, MessageCircle, Target, Heart, Star, Users, Gauge, Bot as Robot, Plus, Volume2, File as Fire, Trophy, Smile, Sparkles, Check, Download } from 'lucide-react'
+import { Brain, MessageCircle, Target, Heart, Star, Users, Gauge, Bot as Robot, Plus, Volume2, File as Fire, Trophy, Smile, Sparkles, Check, Download, Moon, Sun } from 'lucide-react'
 
 const motivationalQuotes = [
   "Believe you can and you're halfway there. - Theodore Roosevelt",
@@ -40,12 +47,31 @@ export default function MotivaBOT() {
   const [goals, setGoals] = useState<any[]>([])
   const [moodEntries, setMoodEntries] = useState<any[]>([])
   const [streak, setStreak] = useState(0)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const initialTheme = savedTheme || systemTheme
+    setTheme(initialTheme)
+    setIsDarkMode(initialTheme === 'dark')
+    document.documentElement.classList.toggle('dark', initialTheme === 'dark')
+
+    // Use localStorage directly for personality data
+    const savedPersonalityData = localStorage.getItem('personalityData')
+    if (savedPersonalityData) {
+      const parsedData = JSON.parse(savedPersonalityData)
+      setPersonalityData(parsedData)
+      setUserName(parsedData.name)
+      setIsPersonalityComplete(true)
+    }
+  }, [])
 
   useEffect(() => {
     setCurrentQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)])
 
-    document.body.setAttribute("data-theme", isDarkMode ? "dark" : "light")
-    document.body.className = `pattern-${currentPattern}`
+    document.body.setAttribute("data-theme", theme === 'dark' ? "dark" : "light")
+    document.body.className = `pattern-${currentPattern} ${theme === 'dark' ? 'dark-mode' : 'light-mode'}`
 
     createParticles(10)
 
@@ -56,24 +82,19 @@ export default function MotivaBOT() {
         setHasAutoSpoken(true)
       }, 1000)
     }
-  }, [isDarkMode, currentPattern, isPersonalityComplete, userName, hasAutoSpoken])
+  }, [theme, currentPattern, isPersonalityComplete, userName, hasAutoSpoken])
 
   useEffect(() => {
-    if (activeTab === "dashboard" && currentQuote && isPersonalityComplete && hasAutoSpoken) {
-      setTimeout(async () => {
-        const quoteMessage = `Here's your daily motivation: ${currentQuote}`
-        await speakText(quoteMessage)
-      }, 3000)
-    }
-  }, [activeTab, currentQuote, isPersonalityComplete, hasAutoSpoken])
-
-  useEffect(() => {
-    const loadedHabits = dataStore.get('habits', [])
-    const loadedGoals = dataStore.get('goals', [])
-    const loadedMood = dataStore.get('moodEntries', [])
-    const loadedStreak = dataStore.get('streak', 0)
-    
+    // Load habits from localStorage
+    const savedHabits = localStorage.getItem('habits')
+    const loadedHabits = savedHabits ? JSON.parse(savedHabits) : []
     setHabits(loadedHabits)
+    
+    // Load goals, mood, and streak from DataStore
+    const loadedGoals = dataStore.getGoals()
+    const loadedMood = dataStore.getMoodHistory()
+    const loadedStreak = dataStore.getStreak()
+    
     setGoals(loadedGoals)
     setMoodEntries(loadedMood)
     setStreak(loadedStreak)
@@ -114,6 +135,8 @@ export default function MotivaBOT() {
     setPersonalityData(data)
     setUserName(data.name)
     setIsPersonalityComplete(true)
+    // Use localStorage for personality data
+    localStorage.setItem('personalityData', JSON.stringify(data))
 
     const completionMessage = `Great job completing your personality assessment, ${data.name}! Now I can provide you with personalized motivation based on your goals and preferences.`
     setTimeout(async () => {
@@ -122,7 +145,11 @@ export default function MotivaBOT() {
   }
 
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode)
+    const newTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(newTheme)
+    setIsDarkMode(newTheme === 'dark')
+    localStorage.setItem('theme', newTheme)
+    document.documentElement.classList.toggle('dark', newTheme === 'dark')
   }
 
   const changePattern = (pattern: string) => {
@@ -154,17 +181,15 @@ export default function MotivaBOT() {
   const handleAddHabit = (habit: string) => {
     const newHabits = [...habits, habit]
     setHabits(newHabits)
-    dataStore.set('habits', newHabits)
+    // Use localStorage for habits
+    localStorage.setItem('habits', JSON.stringify(newHabits))
   }
 
   const handleRemoveHabit = (habit: string) => {
     const newHabits = habits.filter((h) => h !== habit)
     setHabits(newHabits)
-    dataStore.set('habits', newHabits)
-  }
-
-  if (!isPersonalityComplete) {
-    return <PersonalityTest onComplete={handlePersonalityComplete} />
+    // Use localStorage for habits
+    localStorage.setItem('habits', JSON.stringify(newHabits))
   }
 
   const tabs = [
@@ -239,58 +264,78 @@ export default function MotivaBOT() {
     },
   ]
 
+  if (!isPersonalityComplete) {
+    return <PersonalityTest onComplete={handlePersonalityComplete} />
+  }
+
   return (
-    <div className="min-h-screen">
+    <div className={`min-h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-background text-foreground' : 'bg-gradient-to-br from-amber-50 to-orange-50 text-gray-900'}`}>
       <div className="particles" id="particles"></div>
 
-      <div className="app-container">
-        <header className="main-header">
-          <div className="logo-section">
-            <div className="logo">
-              <i className="fas fa-robot"></i>
-              <span>MotivaBOT</span>
+      <div className="app-container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <header className="main-header flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 pb-6 border-b-2">
+          <div className="logo-section flex flex-col sm:flex-row items-center gap-4">
+            <div className="logo flex items-center gap-2">
+              <span className="text-3xl">🤖</span>
+              <span className="text-2xl font-bold">MotivaBOT</span>
             </div>
-            <div className="tagline">Your Personal AI Motivation Coach</div>
+            <div className="tagline text-center sm:text-left">Your Personal AI Motivation Coach</div>
           </div>
-          <div className="user-profile">
-            <div className="profile-pic">
-              <i className="fas fa-user"></i>
-            </div>
-            <div className="profile-info">
-              <div className="username">Welcome, {userName}!</div>
-              <div className="personality-type">Ready to achieve greatness</div>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              className="rounded-full transition-all duration-300 hover:scale-110"
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            >
+              {theme === 'light' ? (
+                <Moon className="h-5 w-5" />
+              ) : (
+                <Sun className="h-5 w-5" />
+              )}
+            </Button>
+            <div className="user-profile flex items-center gap-3 p-2 rounded-lg bg-primary/10">
+              <div className="profile-pic w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-xl">
+                👤
+              </div>
+              <div className="profile-info hidden sm:block">
+                <div className="username font-semibold">Welcome, {userName}!</div>
+                <div className="personality-type text-sm opacity-80">Ready to achieve greatness</div>
+              </div>
             </div>
           </div>
         </header>
 
-        <h1 className="app-title">Achieve Your Goals with MotivaBOT</h1>
-        <p className="app-subtitle">Your personalized AI companion for growth and inspiration.</p>
+        <h1 className="app-title text-4xl md:text-5xl font-bold text-center mb-4">
+          Achieve Your Goals with MotivaBOT
+        </h1>
+        <p className="app-subtitle text-center text-lg mb-8 opacity-80">
+          Your personalized AI companion for growth and inspiration.
+        </p>
 
-        <div className="theme-controls">
-          <button className="theme-btn" onClick={toggleTheme} title="Toggle Theme">
-            <i className={`fas ${isDarkMode ? "fa-sun" : "fa-moon"}`}></i>
-          </button>
+        <div className="theme-controls flex justify-center gap-3 mb-6">
           <button
-            className="pattern-btn"
+            className="pattern-btn w-12 h-12 rounded-full border-2 transition-all hover:scale-110"
             onClick={() => changePattern("geometric")}
             style={{ background: "linear-gradient(45deg, #FFD700, #DAA520)" }}
             title="Geometric Pattern"
-          ></button>
+          />
           <button
-            className="pattern-btn"
+            className="pattern-btn w-12 h-12 rounded-full border-2 transition-all hover:scale-110"
             onClick={() => changePattern("organic")}
             style={{ background: "linear-gradient(45deg, #667eea, #764ba2)" }}
             title="Organic Pattern"
-          ></button>
+          />
           <button
-            className="pattern-btn"
+            className="pattern-btn w-12 h-12 rounded-full border-2 transition-all hover:scale-110"
             onClick={() => changePattern("waves")}
             style={{ background: "linear-gradient(45deg, #33ccff, #3366ff)" }}
             title="Wave Pattern"
-          ></button>
+          />
         </div>
 
-        <nav className="tab-navigation">
+        <nav className="tab-navigation grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-8">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -300,17 +345,9 @@ export default function MotivaBOT() {
                 onClick={() => setActiveTab(tab.id)}
                 title={tab.description}
               >
-                <Icon size={28} />
-                <span style={{ fontWeight: "600", fontSize: "0.95rem" }}>{tab.label}</span>
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    opacity: 0.8,
-                    textAlign: "center",
-                    lineHeight: "1.2",
-                    marginTop: "0.25rem",
-                  }}
-                >
+                <Icon className="w-7 h-7 mb-2" />
+                <span className="font-semibold text-sm">{tab.label}</span>
+                <span className="text-xs opacity-75 mt-1 line-clamp-2">
                   {tab.description.split(",")[0]}
                 </span>
               </button>
@@ -318,27 +355,25 @@ export default function MotivaBOT() {
           })}
         </nav>
 
-        <div className="space-y-6">
+        <div className="space-y-6 pb-8">
           {activeTab === "dashboard" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
               <div
-                className="card lg:col-span-2"
+                className="card lg:col-span-2 p-6"
                 style={{ background: "linear-gradient(135deg, var(--primary), var(--primary-dark))", color: "white" }}
               >
-                <h2 style={{ color: "white", marginBottom: "1rem" }}>Welcome Back, {userName}!</h2>
-                <div style={{ fontStyle: "italic", fontSize: "1.1rem", marginBottom: "1.5rem" }}>
-                  <i className="fas fa-quote-left"></i>
-                  <p>"{currentQuote}"</p>
+                <h2 className="text-2xl font-bold mb-4" style={{ color: "white" }}>Welcome Back, {userName}!</h2>
+                <div className="mb-6">
+                  <div className="text-xl italic mb-4">
+                    <span className="text-3xl">💭</span>
+                    <p className="mt-2">"{currentQuote}"</p>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <div className="flex flex-wrap gap-3">
                   <Button
                     onClick={speakCurrentQuote}
                     disabled={isSpeaking}
-                    style={{
-                      background: "rgba(255,255,255,0.2)",
-                      border: "1px solid rgba(255,255,255,0.3)",
-                      color: "white",
-                    }}
+                    className="bg-white/20 hover:bg-white/30 border border-white/30"
                   >
                     <Volume2 className="w-4 h-4 mr-2" />
                     {isSpeaking ? "Speaking..." : "Speak This"}
@@ -346,11 +381,7 @@ export default function MotivaBOT() {
                   <Button
                     onClick={getNewQuote}
                     disabled={isSpeaking}
-                    style={{
-                      background: "rgba(255,255,255,0.2)",
-                      border: "1px solid rgba(255,255,255,0.3)",
-                      color: "white",
-                    }}
+                    className="bg-white/20 hover:bg-white/30 border border-white/30"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     New Quote
@@ -359,87 +390,60 @@ export default function MotivaBOT() {
               </div>
 
               <div className="space-y-4">
-                <div
-                  className="card"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem" }}
-                >
+                <div className="card p-6 flex items-center justify-between">
                   <div>
-                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>{streak}</div>
-                    <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Day Streak</div>
+                    <div className="text-3xl font-bold text-primary">{streak}</div>
+                    <div className="text-sm opacity-80">Day Streak</div>
                   </div>
-                  <Fire className="w-8 h-8" style={{ color: "var(--primary)" }} />
+                  <Fire className="w-10 h-10 text-orange-500" />
                 </div>
 
-                <div
-                  className="card"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem" }}
-                >
+                <div className="card p-6 flex items-center justify-between">
                   <div>
-                    <div style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--primary)" }}>{goals.length}</div>
-                    <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Goals Achieved</div>
+                    <div className="text-3xl font-bold text-primary">{goals.length}</div>
+                    <div className="text-sm opacity-80">Total Goals</div>
                   </div>
-                  <Trophy className="w-8 h-8" style={{ color: "var(--primary)" }} />
+                  <Trophy className="w-10 h-10 text-yellow-500" />
                 </div>
 
-                <div
-                  className="card"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem" }}
-                >
+                <div className="card p-6 flex items-center justify-between">
                   <div>
-                    <div style={{ fontSize: "2rem", fontWeight: "bold" }}>😊</div>
-                    <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Avg Mood</div>
+                    <div className="text-3xl">😊</div>
+                    <div className="text-sm opacity-80">Average Mood</div>
                   </div>
-                  <Smile className="w-8 h-8" style={{ color: "var(--primary)" }} />
+                  <Smile className="w-10 h-10 text-green-500" />
                 </div>
               </div>
 
-              <div className="card lg:col-span-3">
-                <h3 style={{ color: "var(--primary)", marginBottom: "1.5rem" }}>Quick Actions</h3>
-                <div
-                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}
-                >
+              <div className="card lg:col-span-3 p-6">
+                <h3 className="text-xl font-bold text-primary mb-4">Quick Actions</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <Button
                     onClick={() => setActiveTab("chat")}
-                    style={{
-                      background: "linear-gradient(135deg, var(--secondary), var(--secondary-dark))",
-                      color: "white",
-                      justifyContent: "flex-start",
-                    }}
+                    className="justify-start h-auto py-4"
                   >
-                    <Robot className="w-4 h-4 mr-2" />
+                    <Robot className="w-5 h-5 mr-2" />
                     Chat with MotivaBOT
                   </Button>
                   <Button
                     onClick={() => setActiveTab("affirmations")}
-                    style={{
-                      background: "linear-gradient(135deg, var(--primary), var(--primary-dark))",
-                      color: "black",
-                      justifyContent: "flex-start",
-                    }}
+                    className="justify-start h-auto py-4"
                   >
-                    <Sparkles className="w-4 h-4 mr-2" />
+                    <Sparkles className="w-5 h-5 mr-2" />
                     Daily Affirmations
                   </Button>
                   <Button
                     onClick={() => setActiveTab("goals")}
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      justifyContent: "flex-start",
-                    }}
+                    className="justify-start h-auto py-4"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Plus className="w-5 h-5 mr-2" />
                     Add New Goal
                   </Button>
                   <Button
                     onClick={() => setActiveTab("mood")}
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      justifyContent: "flex-start",
-                    }}
+                    className="justify-start h-auto py-4"
                   >
-                    <Heart className="w-4 h-4 mr-2" />
+                    <Heart className="w-5 h-5 mr-2" />
                     Log Mood
                   </Button>
                 </div>
@@ -448,11 +452,9 @@ export default function MotivaBOT() {
           )}
 
           {activeTab === "affirmations" && <AffirmationsModule />}
-
           {activeTab === "achievements" && (
             <AchievementsModule goals={goals} moodEntries={moodEntries} streak={streak} />
           )}
-
           {activeTab === "habits" && (
             <HabitTracker
               habits={habits}
@@ -462,17 +464,22 @@ export default function MotivaBOT() {
               onRemove={handleRemoveHabit}
             />
           )}
-
           {activeTab === "export" && (
             <DataExport userData={personalityData} goals={goals} moodEntries={moodEntries} streak={streak} />
           )}
-
-          {activeTab !== "dashboard" && activeTab !== "affirmations" && activeTab !== "achievements" && activeTab !== "habits" && activeTab !== "export" && (
-            <div className="card">
-              <h2 className="card-title">{tabs.find((tab) => tab.id === activeTab)?.label}</h2>
-              <p>This section is under development. Advanced features coming soon!</p>
-            </div>
+          {activeTab === "personality" && (
+            <PersonaProfile
+              personalityData={personalityData}
+              goals={goals}
+              moodEntries={moodEntries}
+              streak={streak}
+            />
           )}
+          {activeTab === "chat" && <ChatModule />}
+          {activeTab === "goals" && <GoalsModule />}
+          {activeTab === "mood" && <MoodLogger />}
+          {activeTab === "horoscope" && <HoroscopeModule />}
+          {activeTab === "friends" && <CommunityModule />}
         </div>
       </div>
     </div>
