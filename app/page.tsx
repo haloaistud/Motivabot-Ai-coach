@@ -1,40 +1,72 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import PersonalityTest, { type PersonalityData } from "@/components/personality-test"
-import AffirmationsModule from "@/components/affirmations-module"
-import AchievementsModule from "@/components/achievements-module"
-import HabitTracker from "@/components/habit-tracker"
-import DataExport from "@/components/data-export"
-import PersonaProfile from "@/components/persona-profile"
-import CommunityModule from "@/components/community-module"
-import ChatModule from "@/components/chat-module"
-import GoalsModule from "@/components/goals-module"
-import MoodLogger from "@/components/mood-logger"
-import HoroscopeModule from "@/components/horoscope-module"
-import SidebarNav from "@/components/sidebar-nav"
-import QuickAddButton from "@/components/quick-add-button"
-import DashboardContent from "@/components/dashboard-content"
-import { elevenLabsService } from "@/lib/elevenlabs"
-import { dataStore } from "@/lib/data-store"
-import { Brain, MessageCircle, Target, Heart, Star, Users, LayoutDashboard, Check, Trophy, Download, Sparkles, Moon, Sun, Menu, Phone } from 'lucide-react'
-import VoiceConversation from "@/components/voice-conversation"
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import styles from "./page.module.css";
 
-const motivationalQuotes = [
-  "Believe you can and you're halfway there. - Theodore Roosevelt",
-  "Do what you can, with what you have, where you are. - Theodore Roosevelt",
-  "It always seems impossible until it's done. - Nelson Mandela",
-  "Success is not final, failure is not fatal: It is the courage to continue that counts. - Winston Churchill",
-  "The best way to predict the future is to create it. - Peter Drucker",
-  "Your time is limited, don't waste it living someone else's life. - Steve Jobs",
-  "The future belongs to those who believe in the beauty of their dreams. - Eleanor Roosevelt",
-  "You are never too old to set another goal or to dream a new dream. - C.S. Lewis",
-  "Do not wait to strike till the iron is hot; but make it hot by striking. - William Butler Yeats",
-  "Whether you think you can or you think you can't, you're right. - Henry Ford",
-]
+export default function Login() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-export default function MotivaBOT() {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    // Simulated login
+    setTimeout(() => {
+      setLoading(false);
+      // setError("Invalid credentials"); // Example error
+    }, 1500);
+  };
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.logo}>
+        <Image
+          src="/MotivaBOT.png"
+          alt="MotivaBOT Logo"
+          width={200}
+          height={200}
+          priority
+        />
+      </div>
+
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <label className={styles.label}>
+          Email
+          <input
+            className={styles.input}
+            type="email"
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label className={styles.label}>
+          Password
+          <input
+            className={styles.input}
+            type="password"
+            autoComplete="current-password"
+            required
+          />
+        </label>
+
+        {error && <p className={styles.error}>{error}</p>}
+
+        <button className={styles.button} type="submit" disabled={loading}>
+          {loading ? "Loading..." : "Login"}
+        </button>
+      </form>
+
+      <p className={styles.registerText}>
+        Don’t have an account? <Link href="/register">Register</Link>
+      </p>
+    </div>
+  );
+        }export default function MotivaBOT() {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [userName, setUserName] = useState("")
   const [personalityData, setPersonalityData] = useState<PersonalityData | null>(null)
