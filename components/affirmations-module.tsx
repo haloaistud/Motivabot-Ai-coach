@@ -1,40 +1,30 @@
-"use client"
+/affirmations-module.tsx
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Heart, Shuffle, Volume2, Star, TrendingUp } from "lucide-react"
+use client
 
-interface Affirmation {
-  id: string
-  text: string
-  category: string
-  author?: string
-  tags: string[]
-  moodBoost: string[]
-  difficulty: string
-  popularity: number
-  createdAt: string
-  updatedAt: string
-}
+import React from 'react';
 
-interface AffirmationsResponse {
-  affirmations: Affirmation[]
-  total: number
-  page: number
-  hasMore: boolean
-}
+const AffirmationsModule = () => {
+  return <div>Affirmations Module</div>;
+};
 
-interface DailyAffirmationResponse {
-  affirmation: Affirmation
-  date: string
-  specialMessage: string
-}
+export default AffirmationsModule;
+```
+And a typical page file might look like this:
+```
+// pages/index.tsx
+import React from 'react';
+import AffirmationsModule from '../components/affirmations-module';
 
-export default function AffirmationsModule() {
-  const [affirmations, setAffirmations] = useState<Affirmation[]>([])
-  const [dailyAffirmation, setDailyAffirmation] = useState<DailyAffirmationResponse | null>(null)
+const IndexPage = () => {
+  return (
+    <div>
+      <AffirmationsModule />
+    </div>
+  );
+};
+
+export default IndexPage;  const [dailyAffirmation, setDailyAffirmation] = useState<DailyAffirmationResponse | null>(null)
   const [currentAffirmation, setCurrentAffirmation] = useState<Affirmation | null>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [selectedCategory, setSelectedCategory] = useState<string>("")
