@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Send, Mic, Bot as Robot, Trash2, MicOff, AlertCircle } from 'lucide-react'
+import { Send, Mic, Bot as Robot, Trash2, MicOff, AlertCircle, Loader2 } from "lucide-react"
 import { aiAgent } from "@/lib/ai-agent"
 import { elevenLabsAgent } from "@/lib/elevenlabs-agent"
 import type { AIMessage } from "@/lib/ai-agent"
+import type { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent } from "types/web-speech-api"
 
 interface ChatModuleProps {
   onMessageSpeak?: (text: string, emotion?: string) => void
@@ -19,39 +20,35 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [recognition, setRecognition] = useState<any>(null)
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
   const [conversationId] = useState(() => `conv_${Date.now()}`)
   const [userId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
   const chatLogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if ("SpeechRecognition" in window || "webkitSpeechRecognition" in window) {
-      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
-      const recognitionInstance = new SpeechRecognition()
+    if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
+      const SpeechRecognitionClass = window.SpeechRecognition || (window as any).webkitSpeechRecognition
+      const recognitionInstance = new SpeechRecognitionClass()
 
       recognitionInstance.continuous = false
       recognitionInstance.lang = "en-US"
       recognitionInstance.interimResults = false
       recognitionInstance.maxAlternatives = 1
 
-      recognitionInstance.onstart = () => {
-        setIsListening(true)
-      }
-
-      recognitionInstance.onresult = (event: any) => {
+      recognitionInstance.onstart = () => setIsListening(true)
+      recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript
         setInput(transcript)
         setIsListening(false)
       }
-
-      recognitionInstance.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error)
+      recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error("[ChatModule] Speech recognition error:", event.error)
         setIsListening(false)
+        if (event.error !== "aborted") {
+          setError("Voice recognition failed. Please try again or type your message.")
+        }
       }
-
-      recognitionInstance.onend = () => {
-        setIsListening(false)
-      }
+      recognitionInstance.onend = () => setIsListening(false)
 
       setRecognition(recognitionInstance)
     }
@@ -81,14 +78,15 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
         setMessages(conversation.messages)
       }
 
-      if (response.emotion) {
+      // Speak the response
+      if (response.content) {
         setIsSpeaking(true)
         await elevenLabsAgent.speak({
           text: response.content,
           emotion: response.emotion,
           onEnd: () => setIsSpeaking(false),
           onError: (err) => {
-            console.error("Speech error:", err)
+            console.error("[ChatModule] Speech error:", err)
             setIsSpeaking(false)
           },
         })
@@ -133,25 +131,13 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
     }
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    })
-  }
-
   const quickActions = [
-    { text: "I need motivation for work", label: "💼 Work Motivation", category: "work" },
-    { text: "Help me set a meaningful goal", label: "🎯 Goal Setting", category: "goals" },
-    { text: "I'm feeling down and need support", label: "💙 Emotional Support", category: "support" },
-    { text: "Give me an inspiring pep talk", label: "🔥 Pep Talk", category: "motivation" },
-    { text: "I'm struggling with staying motivated", label: "💪 Stay Motivated", category: "persistence" },
-    { text: "What's my purpose in life?", label: "🌟 Find Purpose", category: "purpose" },
-    { text: "How can I build better habits?", label: "🔄 Build Habits", category: "habits" },
-    { text: "I need help with time management", label: "⏰ Time Management", category: "productivity" },
-    { text: "How do I overcome fear and anxiety?", label: "🦋 Overcome Fear", category: "courage" },
-    { text: "I want to improve my self-confidence", label: "✨ Build Confidence", category: "confidence" },
+    { text: "I need motivation for work", label: "Work Motivation", category: "work" },
+    { text: "Help me set a meaningful goal", label: "Goal Setting", category: "goals" },
+    { text: "I'm feeling down and need support", label: "Emotional Support", category: "support" },
+    { text: "Give me an inspiring pep talk", label: "Pep Talk", category: "motivation" },
+    { text: "I'm struggling with staying motivated", label: "Stay Motivated", category: "persistence" },
+    { text: "How can I build better habits?", label: "Build Habits", category: "habits" },
   ]
 
   return (
@@ -168,16 +154,16 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
                 <div className="text-sm text-golden-dark">
                   {isProcessing ? (
                     <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-golden-primary rounded-full animate-pulse"></div>
-                      Crafting your motivation...
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Thinking with Gemini AI...
                     </span>
                   ) : isSpeaking ? (
                     <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      Speaking with inspiration...
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      Speaking...
                     </span>
                   ) : (
-                    "Your Personal Success Coach • Online 24/7"
+                    "Powered by Gemini AI"
                   )}
                 </div>
               </div>
@@ -211,15 +197,28 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
             <AlertCircle className="w-4 h-4 shrink-0" />
             <p className="text-sm">{error}</p>
             <Button variant="ghost" size="sm" onClick={() => setError(null)} className="ml-auto">
-              ×
+              x
             </Button>
           </div>
         )}
 
-        <div id="chat-log" ref={chatLogRef} className="h-80 overflow-y-auto mb-6 p-4 bg-gradient-to-b from-golden-light/5 to-transparent rounded-lg border border-golden-primary/20">
+        <div
+          id="chat-log"
+          ref={chatLogRef}
+          className="h-80 overflow-y-auto mb-6 p-4 bg-gradient-to-b from-golden-light/5 to-transparent rounded-lg border border-golden-primary/20"
+        >
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+              <Robot className="w-16 h-16 mb-4 text-golden-primary/50" />
+              <p className="text-lg font-medium">Start a conversation</p>
+              <p className="text-sm">Ask me anything about motivation, goals, or personal growth!</p>
+            </div>
+          )}
           {messages.map((msg, index) => (
             <div key={msg.id || index} className={`mb-4 ${msg.role === "user" ? "text-right" : "text-left"}`}>
-              <div className={`inline-block max-w-[85%] ${msg.role === "user" ? "bg-gradient-to-r from-golden-primary to-golden-accent text-black ml-auto shadow-lg" : "bg-gradient-to-r from-white to-golden-light/20 text-golden-primary mr-auto border border-golden-primary/20 shadow-md"} p-4 rounded-2xl`}>
+              <div
+                className={`inline-block max-w-[85%] ${msg.role === "user" ? "bg-gradient-to-r from-golden-primary to-golden-accent text-black ml-auto shadow-lg" : "bg-gradient-to-r from-white to-golden-light/20 text-golden-primary mr-auto border border-golden-primary/20 shadow-md"} p-4 rounded-2xl`}
+              >
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-2 mb-2">
                     <Robot className="w-4 h-4 text-golden-primary" />
@@ -232,7 +231,9 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
                   </div>
                 )}
                 <div className="break-words leading-relaxed">{msg.content}</div>
-                <div className={`text-xs mt-2 opacity-70 ${msg.role === "user" ? "text-black/70" : "text-golden-dark"}`}>
+                <div
+                  className={`text-xs mt-2 opacity-70 ${msg.role === "user" ? "text-black/70" : "text-golden-dark"}`}
+                >
                   {new Date(msg.timestamp).toLocaleTimeString("en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -242,13 +243,11 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
               </div>
             </div>
           ))}
-          {(isSpeaking || isProcessing) && (
+          {isProcessing && (
             <div className="text-center py-4">
               <div className="inline-flex items-center gap-3 text-golden-primary bg-golden-light/20 px-4 py-2 rounded-full border border-golden-primary/20">
-                <div className="speaking-animation text-xl">{isProcessing ? "🤔" : "🔊"}</div>
-                <span className="font-medium">
-                  {isProcessing ? "MotivaBOT is thinking deeply..." : "MotivaBOT is speaking with passion..."}
-                </span>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="font-medium">MotivaBOT is thinking...</span>
               </div>
             </div>
           )}
@@ -261,14 +260,14 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
             onChange={(e) => setInput(e.target.value)}
             placeholder={
               isListening
-                ? "🎤 Listening to your voice..."
+                ? "Listening to your voice..."
                 : isProcessing
-                  ? "⏳ Processing your message..."
+                  ? "Processing your message..."
                   : "Share what's on your mind..."
             }
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             disabled={isListening || isProcessing}
-            className="flex-1 px-4 py-3 border-2 border-golden-primary/30 rounded-xl bg-white/90 text-golden-primary placeholder-golden-dark/60 focus:border-golden-primary focus:ring-2 focus:ring-golden-primary/20"
+            className="flex-1 px-4 py-3 border-2 border-golden-primary/30 rounded-xl bg-white/90 text-golden-primary placeholder-golden-dark/60 focus:border-golden-primary focus:ring-2 focus:ring-golden-primary/20 focus:outline-none"
           />
           <button
             id="send-button"
@@ -282,8 +281,8 @@ const ChatModule = ({ onMessageSpeak }: ChatModuleProps) => {
         </div>
 
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-golden-primary">Quick Actions - Get Instant Motivation:</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <h4 className="text-sm font-semibold text-golden-primary">Quick Actions:</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {quickActions.map((action, index) => (
               <Button
                 key={index}
